@@ -17,14 +17,15 @@
     .card{background:#111831; border:1px solid #1c254b; border-radius:20px; padding:18px;}
     h1{margin:6px 0 14px; font-size:22px;}
     #reader{width:100%; min-height:320px; border-radius:16px; background:#0a0f22; border:1px solid #1f2a56}
-    .controls{margin:12px 0}
+    .controls{margin:12px 0; display:flex; gap:10px; align-items:center;}
     button{border:1px solid #273065; background:#161d3f; color:#e8e9f0; padding:10px 14px; border-radius:12px; cursor:pointer}
+    select{padding:8px; border-radius:10px; background:#161d3f; color:#e8e9f0; border:1px solid #273065;}
     .status{margin-top:10px; padding:12px; border-radius:14px; border:1px solid #263066; background:#0e1535}
     .status.ok{border-color:#0e7a56; background:#0b2a20}
     .status.bad{border-color:#7a0e1f; background:#2a0b11}
-    .flash{position:fixed; top:0; left:0; width:100%; height:100%; display:none; align-items:center; justify-content:center; z-index:9999; font-size:32px; font-weight:bold; color:#fff;}
-    .flash.green{background:rgba(0,255,0,0.8);}
-    .flash.red{background:rgba(255,0,0,0.8);}
+    .flash{position:fixed; top:0; left:0; width:100%; height:100%; display:none; flex-direction:column; align-items:center; justify-content:center; z-index:9999; font-size:32px; font-weight:bold; color:#fff;}
+    .flash.green{background:rgba(0,255,0,0.9);}
+    .flash.red{background:rgba(255,0,0,0.9);}
     .flash button{margin-top:20px; font-size:20px; padding:12px 20px; border-radius:12px; border:none; cursor:pointer;}
   </style>
 </head>
@@ -34,6 +35,7 @@
       <h1>📷 Barcode & QR Matcher</h1>
       <div id="reader"></div>
       <div class="controls">
+        <select id="cameraSelect"></select>
         <button id="btnStart">Start Scan</button>
         <button id="btnStop" disabled>Stop</button>
       </div>
@@ -53,7 +55,7 @@
   </div>
 
 <script>
-  let html5Qr=null, isRunning=false, target='A';
+  let html5Qr=null, isRunning=false, target='A', currentCameraId=null;
   const els = {
     reader: document.getElementById('reader'),
     start: document.getElementById('btnStart'),
@@ -62,7 +64,8 @@
     valB: document.getElementById('valB'),
     status: document.getElementById('status'),
     flashGreen: document.getElementById('flashGreen'),
-    flashRed: document.getElementById('flashRed')
+    flashRed: document.getElementById('flashRed'),
+    cameraSelect: document.getElementById('cameraSelect')
   };
 
   function setStatus(kind,msg){
@@ -112,7 +115,7 @@
     ]};
 
     try{
-      await html5Qr.start({ facingMode: { exact: "environment" } }, cfg, onScan);
+      await html5Qr.start(currentCameraId, cfg, onScan);
       isRunning = true;
       els.start.disabled=true; els.stop.disabled=false;
       setStatus('neutral', `Scanning for ${target==='A'?'A':'B'}…`);
@@ -135,8 +138,31 @@
     else { els.valB.value=text; updateMatch(); }
   }
 
+  async function initCameras(){
+    try{
+      const devices = await Html5Qrcode.getCameras();
+      els.cameraSelect.innerHTML = '';
+      devices.forEach((cam,i)=>{
+        const opt = document.createElement('option');
+        opt.value = cam.id;
+        opt.text = cam.label || `Camera ${i+1}`;
+        els.cameraSelect.appendChild(opt);
+      });
+      // Pick default: first back camera if exists, else first
+      let backCam = devices.find(d=>d.label.toLowerCase().includes('back'));
+      currentCameraId = backCam ? backCam.id : devices[0].id;
+      els.cameraSelect.value = currentCameraId;
+    }catch(e){
+      console.error('Camera init failed', e);
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', ()=>{
-    els.start.addEventListener('click', start);
+    initCameras();
+    els.start.addEventListener('click', ()=>{
+      currentCameraId = els.cameraSelect.value;
+      start();
+    });
     els.stop.addEventListener('click', stop);
   });
 </script>
