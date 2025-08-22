@@ -3,43 +3,43 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Camera Barcode/QR Matcher</title>
+  <title>Barcode/QR Matcher (Camera & Bluetooth)</title>
   <link rel="preconnect" href="https://unpkg.com" crossorigin>
   <script src="https://unpkg.com/html5-qrcode" defer></script>
   <style>
-    :root{
-      --bg:#0b1020; --card:#111831; --muted:#98a2b3; --ok:#12b981; --bad:#ef4444; --warn:#f59e0b; --ink:#e5e7eb;
-    }
+    :root{--bg:#0b1020;--card:#111831;--muted:#98a2b3;--ok:#12b981;--bad:#ef4444;--warn:#f59e0b;--ink:#e5e7eb;}
     *{box-sizing:border-box}
     html,body{height:100%}
-    body{margin:0;font:16px/1.4 system-ui; color:var(--ink); background:#0b1020; display:flex; align-items:center; justify-content:center;}
-    .wrap{width:min(960px, 96vw); margin:20px;}
-    .card{background:#111831; border:1px solid #1c254b; border-radius:20px; padding:18px;}
-    h1{margin:6px 0 14px; font-size:22px;}
-    #reader{width:100%; min-height:320px; border-radius:16px; background:#0a0f22; border:1px solid #1f2a56}
-    .controls{margin:12px 0; display:flex; gap:10px; align-items:center;}
-    button{border:1px solid #273065; background:#161d3f; color:#e8e9f0; padding:10px 14px; border-radius:12px; cursor:pointer}
-    select{padding:8px; border-radius:10px; background:#161d3f; color:#e8e9f0; border:1px solid #273065;}
-    .status{margin-top:10px; padding:12px; border-radius:14px; border:1px solid #263066; background:#0e1535}
-    .status.ok{border-color:#0e7a56; background:#0b2a20}
-    .status.bad{border-color:#7a0e1f; background:#2a0b11}
-    .status.pause{border-color:#f59e0b; background:#332100}
-    .flash{position:fixed; top:0; left:0; width:100%; height:100%; display:none; flex-direction:column; align-items:center; justify-content:center; z-index:9999; font-size:32px; font-weight:bold; color:#fff;}
+    body{margin:0;font:16px/1.4 system-ui;color:var(--ink);background:#0b1020;display:flex;align-items:center;justify-content:center;}
+    .wrap{width:min(960px,96vw);margin:20px;}
+    .card{background:#111831;border:1px solid #1c254b;border-radius:20px;padding:18px;}
+    h1{margin:6px 0 14px;font-size:22px;}
+    #reader{width:100%;min-height:320px;border-radius:16px;background:#0a0f22;border:1px solid #1f2a56}
+    .controls{margin:12px 0;display:flex;gap:10px;align-items:center;}
+    button{border:1px solid #273065;background:#161d3f;color:#e8e9f0;padding:10px 14px;border-radius:12px;cursor:pointer}
+    select{padding:8px;border-radius:10px;background:#161d3f;color:#e8e9f0;border:1px solid #273065;}
+    .status{margin-top:10px;padding:12px;border-radius:14px;border:1px solid #263066;background:#0e1535}
+    .status.ok{border-color:#0e7a56;background:#0b2a20}
+    .status.bad{border-color:#7a0e1f;background:#2a0b11}
+    .status.pause{border-color:#f59e0b;background:#332100}
+    .flash{position:fixed;top:0;left:0;width:100%;height:100%;display:none;flex-direction:column;align-items:center;justify-content:center;z-index:9999;font-size:32px;font-weight:bold;color:#fff;}
     .flash.green{background:rgba(0,255,0,0.9);}
     .flash.red{background:rgba(255,0,0,0.9);}
-    .flash button{margin-top:20px; font-size:20px; padding:12px 20px; border-radius:12px; border:none; cursor:pointer;}
+    .flash button{margin-top:20px;font-size:20px;padding:12px 20px;border-radius:12px;border:none;cursor:pointer;}
+    label{margin-left:8px;}
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="card">
-      <h1>📷 Barcode & QR Matcher</h1>
-      <div id="reader"></div>
+      <h1>📷 Barcode/QR Matcher (Camera & Bluetooth)</h1>
       <div class="controls">
         <select id="cameraSelect"></select>
-        <button id="btnStart">Start Scan</button>
-        <button id="btnStop" disabled>Stop</button>
+        <button id="btnStart">Start Camera Scan</button>
+        <button id="btnStop" disabled>Stop Camera Scan</button>
+        <label><input type="checkbox" id="cbBluetooth"> Use Bluetooth Scanner</label>
       </div>
+      <div id="reader"></div>
       <div class="status neutral" id="status">Waiting to scan A…</div>
       <input id="valA" placeholder="Scan A" readonly style="width:100%;margin:6px 0;padding:8px">
       <input id="valB" placeholder="Scan B" readonly style="width:100%;margin:6px 0;padding:8px">
@@ -56,126 +56,67 @@
   </div>
 
 <script>
-  let html5Qr=null, isRunning=false, target='A', currentCameraId=null;
-  const els = {
-    reader: document.getElementById('reader'),
-    start: document.getElementById('btnStart'),
-    stop: document.getElementById('btnStop'),
-    valA: document.getElementById('valA'),
-    valB: document.getElementById('valB'),
-    status: document.getElementById('status'),
-    flashGreen: document.getElementById('flashGreen'),
-    flashRed: document.getElementById('flashRed'),
-    cameraSelect: document.getElementById('cameraSelect')
+  let html5Qr=null,isRunning=false,target='A',currentCameraId=null;
+  const els={
+    reader:document.getElementById('reader'),
+    start:document.getElementById('btnStart'),
+    stop:document.getElementById('btnStop'),
+    valA:document.getElementById('valA'),
+    valB:document.getElementById('valB'),
+    status:document.getElementById('status'),
+    flashGreen:document.getElementById('flashGreen'),
+    flashRed:document.getElementById('flashRed'),
+    cameraSelect:document.getElementById('cameraSelect'),
+    cbBluetooth:document.getElementById('cbBluetooth')
   };
 
-  function setStatus(kind,msg){
-    els.status.className = 'status ' + (kind||'neutral');
-    els.status.innerHTML = msg;
-  }
+  function setStatus(kind,msg){els.status.className='status '+(kind||'neutral');els.status.innerHTML=msg;}
+  function norm(s){return (s||'').replace(/\s+/g,'').toUpperCase();}
+  function updateMatch(){const a=els.valA.value,b=els.valB.value;if(!a||!b)return;const match=norm(a)===norm(b);if(match){setStatus('ok','✅ MATCH');showFlash(true);}else{setStatus('bad','❌ NOT A MATCH');showFlash(false);}}
+  function showFlash(isMatch){if(isMatch){els.flashGreen.style.display='flex';}else{els.flashRed.style.display='flex';}stop();}
+  function restartScan(){els.flashGreen.style.display='none';els.flashRed.style.display='none';els.valA.value='';els.valB.value='';target='A';setStatus('neutral','Waiting to scan A…');if(!els.cbBluetooth.checked){start();}}
 
-  function norm(s){ return (s||'').replace(/\s+/g,'').toUpperCase(); }
-
-  function updateMatch(){
-    const a = els.valA.value, b = els.valB.value;
-    if(!a || !b){ return; }
-    const match = norm(a) === norm(b);
-    if(match){
-      setStatus('ok', '✅ MATCH');
-      showFlash(true);
-    } else {
-      setStatus('bad', '❌ NOT A MATCH');
-      showFlash(false);
-    }
-  }
-
-  function showFlash(isMatch){
-    if(isMatch){ els.flashGreen.style.display='flex'; }
-    else { els.flashRed.style.display='flex'; }
-    stop();
-  }
-
-  function restartScan(){
-    els.flashGreen.style.display='none';
-    els.flashRed.style.display='none';
-    els.valA.value=''; els.valB.value=''; target='A';
-    setStatus('neutral', 'Waiting to scan A…');
-    start();
-  }
-
-  async function start(){
-    if(isRunning) return;
-    if(!html5Qr) html5Qr = new Html5Qrcode('reader', { verbose: false });
-
-    const cfg = { fps: 15, qrbox: { width: 280, height: 180 }, aspectRatio: 1.777, formatsToSupport: [
-      Html5QrcodeSupportedFormats.QR_CODE,
-      Html5QrcodeSupportedFormats.CODE_128,
-      Html5QrcodeSupportedFormats.CODE_39,
-      Html5QrcodeSupportedFormats.EAN_13,
-      Html5QrcodeSupportedFormats.UPC_A
-    ]};
-
-    try{
-      await html5Qr.start(currentCameraId, cfg, onScan);
-      isRunning = true;
-      els.start.disabled=true; els.stop.disabled=false;
-      setStatus('neutral', `Scanning for ${target==='A'?'A':'B'}…`);
-    }catch(e){
-      console.error(e);
-      setStatus('bad', 'Camera error.');
-    }
-  }
-
-  async function stop(){
-    if(!isRunning || !html5Qr) return;
-    await html5Qr.stop();
-    await html5Qr.clear();
-    isRunning=false;
-    els.start.disabled=false; els.stop.disabled=true;
-  }
+  async function start(){if(isRunning||els.cbBluetooth.checked)return;if(!html5Qr)html5Qr=new Html5Qrcode('reader',{verbose:false});
+    const cfg={fps:15,qrbox:{width:280,height:180},aspectRatio:1.777,formatsToSupport:[Html5QrcodeSupportedFormats.QR_CODE,Html5QrcodeSupportedFormats.CODE_128,Html5QrcodeSupportedFormats.CODE_39,Html5QrcodeSupportedFormats.EAN_13,Html5QrcodeSupportedFormats.UPC_A]};
+    try{await html5Qr.start(currentCameraId,cfg,onScan);isRunning=true;els.start.disabled=true;els.stop.disabled=false;setStatus('neutral',`Scanning for ${target==='A'?'A':'B'}…`);}catch(e){console.error(e);setStatus('bad','Camera error.');}}
+  async function stop(){if(!isRunning||!html5Qr)return;await html5Qr.stop();await html5Qr.clear();isRunning=false;els.start.disabled=false;els.stop.disabled=true;}
 
   function onScan(text){
     if(target==='A'){
-      els.valA.value=text;
-      target='B';
-      setStatus('pause','✅ A captured. Get ready for Scan B…');
-      stop().then(()=>{
-        setTimeout(()=>{
-          start();
-        },2000); // 2 second pause
-      });
-    } else {
-      els.valB.value=text;
-      updateMatch();
-    }
+      els.valA.value=text;target='B';setStatus('pause','✅ A captured. Get ready for Scan B…');stop().then(()=>setTimeout(()=>start(),2000));
+    }else{els.valB.value=text;updateMatch();}
   }
 
   async function initCameras(){
     try{
-      const devices = await Html5Qrcode.getCameras();
-      els.cameraSelect.innerHTML = '';
-      devices.forEach((cam,i)=>{
-        const opt = document.createElement('option');
-        opt.value = cam.id;
-        opt.text = cam.label || `Camera ${i+1}`;
-        els.cameraSelect.appendChild(opt);
-      });
-      // Pick default: first back camera if exists, else first
-      let backCam = devices.find(d=>d.label.toLowerCase().includes('back'));
-      currentCameraId = backCam ? backCam.id : devices[0].id;
-      els.cameraSelect.value = currentCameraId;
-    }catch(e){
-      console.error('Camera init failed', e);
-    }
+      const devices=await Html5Qrcode.getCameras();
+      els.cameraSelect.innerHTML='';
+      devices.forEach((cam,i)=>{const opt=document.createElement('option');opt.value=cam.id;opt.text=cam.label||`Camera ${i+1}`;els.cameraSelect.appendChild(opt);});
+      let backCam=devices.find(d=>d.label.toLowerCase().includes('back'));
+      currentCameraId=backCam?backCam.id:devices[0].id;els.cameraSelect.value=currentCameraId;
+    }catch(e){console.error('Camera init failed',e);}
   }
 
-  document.addEventListener('DOMContentLoaded', ()=>{
+  // Bluetooth scanner listener
+  document.addEventListener('keydown',e=>{
+    if(!els.cbBluetooth.checked)return;
+    if(e.key==='Enter'){
+      const activeInput=target==='A'?els.valA:els.valB;
+      const scannedValue=activeInput.value.trim();
+      if(!scannedValue)return;
+      if(target==='A'){target='B';setStatus('pause','✅ A captured. Get ready for Scan B…');}
+      else{updateMatch();}
+      activeInput.value='';
+    }else{
+      const activeInput=target==='A'?els.valA:els.valB;
+      activeInput.value+=e.key;
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded',()=>{
     initCameras();
-    els.start.addEventListener('click', ()=>{
-      currentCameraId = els.cameraSelect.value;
-      start();
-    });
-    els.stop.addEventListener('click', stop);
+    els.start.addEventListener('click',()=>{currentCameraId=els.cameraSelect.value;start();});
+    els.stop.addEventListener('click',stop);
   });
 </script>
 </body>
