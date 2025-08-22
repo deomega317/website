@@ -1,76 +1,144 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-	<link rel="icon" href="favicon.png" type="image/x-icon">
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Welcome to Sterling Electric</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Camera Barcode/QR Matcher</title>
+  <link rel="preconnect" href="https://unpkg.com" crossorigin>
+  <script src="https://unpkg.com/html5-qrcode" defer></script>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 0;
-      background: #f4f4f4;
-      color: #333;
+    :root{
+      --bg:#0b1020; --card:#111831; --muted:#98a2b3; --ok:#12b981; --bad:#ef4444; --warn:#f59e0b; --ink:#e5e7eb;
     }
-    header {
-      background: #003366;
-      color: white;
-      padding: 1rem;
-      text-align: center;
-    }
-    nav {
-      background: #00509e;
-      padding: 0.5rem;
-      text-align: center;
-    }
-    nav a {
-      color: white;
-      margin: 0 1rem;
-      text-decoration: none;
-    }
-    main {
-      padding: 2rem;
-    }
-    footer {
-      background: #003366;
-      color: white;
-      text-align: center;
-      padding: 1rem;
-      position: fixed;
-      bottom: 0;
-      width: 100%;
-    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;font:16px/1.4 system-ui; color:var(--ink); background:#0b1020; display:flex; align-items:center; justify-content:center;}
+    .wrap{width:min(960px, 96vw); margin:20px;}
+    .card{background:#111831; border:1px solid #1c254b; border-radius:20px; padding:18px;}
+    h1{margin:6px 0 14px; font-size:22px;}
+    #reader{width:100%; min-height:320px; border-radius:16px; background:#0a0f22; border:1px solid #1f2a56}
+    .controls{margin:12px 0}
+    button{border:1px solid #273065; background:#161d3f; color:#e8e9f0; padding:10px 14px; border-radius:12px; cursor:pointer}
+    .status{margin-top:10px; padding:12px; border-radius:14px; border:1px solid #263066; background:#0e1535}
+    .status.ok{border-color:#0e7a56; background:#0b2a20}
+    .status.bad{border-color:#7a0e1f; background:#2a0b11}
+    .flash{position:fixed; top:0; left:0; width:100%; height:100%; display:none; align-items:center; justify-content:center; z-index:9999; font-size:32px; font-weight:bold; color:#fff;}
+    .flash.green{background:rgba(0,255,0,0.8);}
+    .flash.red{background:rgba(255,0,0,0.8);}
+    .flash button{margin-top:20px; font-size:20px; padding:12px 20px; border-radius:12px; border:none; cursor:pointer;}
   </style>
 </head>
-	 <header>
-    <h1>Sterling Electric, Inc.</h1>
-    <p>Where Quality is in Control</p>
-  </header>
-
-  <nav>
-    <a href="https://deomega317.github.io/website/">Home</a>
-    <a href="https://www.sterlingelectric.com/products">Products</a>
-    <a href="https://www.sterlingelectric.com/about_us">About Us</a>
-    <a href="https://www.sterlingelectric.com/contact_us">Contact</a>
-  </nav>
-
-  <main>
-    <h2>Welcome!</h2>
-    <p>
-      Sterling Electric, Inc. is a leading manufacturer of electric motors and gear reducers.
-      We pride ourselves on delivering top-quality products with exceptional customer service.
-    </p>
-    <p>
-      Browse our product catalog or reach out to us for custom solutions tailored to your business needs.
-    </p>
 <body>
+  <div class="wrap">
+    <div class="card">
+      <h1>📷 Barcode & QR Matcher</h1>
+      <div id="reader"></div>
+      <div class="controls">
+        <button id="btnStart">Start Scan</button>
+        <button id="btnStop" disabled>Stop</button>
+      </div>
+      <div class="status neutral" id="status">Waiting to scan A…</div>
+      <input id="valA" placeholder="Scan A" readonly style="width:100%;margin:6px 0;padding:8px">
+      <input id="valB" placeholder="Scan B" readonly style="width:100%;margin:6px 0;padding:8px">
+    </div>
+  </div>
 
-<h3>Hello</h3>
-<p>
-<a href="Form.html">Forms</a><br><br><br><br><br><br>
-<a href="Links.html">Go Back</a>
-</p>
-  </main>
+  <div id="flashGreen" class="flash green">
+    ✅ MATCH<br>
+    <button onclick="restartScan()">Restart</button>
+  </div>
+  <div id="flashRed" class="flash red">
+    ❌ NOT A MATCH<br>
+    <button onclick="restartScan()">Restart</button>
+  </div>
+
+<script>
+  let html5Qr=null, isRunning=false, target='A';
+  const els = {
+    reader: document.getElementById('reader'),
+    start: document.getElementById('btnStart'),
+    stop: document.getElementById('btnStop'),
+    valA: document.getElementById('valA'),
+    valB: document.getElementById('valB'),
+    status: document.getElementById('status'),
+    flashGreen: document.getElementById('flashGreen'),
+    flashRed: document.getElementById('flashRed')
+  };
+
+  function setStatus(kind,msg){
+    els.status.className = 'status ' + (kind||'neutral');
+    els.status.innerHTML = msg;
+  }
+
+  function norm(s){ return (s||'').replace(/\s+/g,'').toUpperCase(); }
+
+  function updateMatch(){
+    const a = els.valA.value, b = els.valB.value;
+    if(!a || !b){ return; }
+    const match = norm(a) === norm(b);
+    if(match){
+      setStatus('ok', '✅ MATCH');
+      showFlash(true);
+    } else {
+      setStatus('bad', '❌ NOT A MATCH');
+      showFlash(false);
+    }
+  }
+
+  function showFlash(isMatch){
+    if(isMatch){ els.flashGreen.style.display='flex'; }
+    else { els.flashRed.style.display='flex'; }
+    stop();
+  }
+
+  function restartScan(){
+    els.flashGreen.style.display='none';
+    els.flashRed.style.display='none';
+    els.valA.value=''; els.valB.value=''; target='A';
+    setStatus('neutral', 'Waiting to scan A…');
+    start();
+  }
+
+  async function start(){
+    if(isRunning) return;
+    if(!html5Qr) html5Qr = new Html5Qrcode('reader', { verbose: false });
+
+    const cfg = { fps: 15, qrbox: { width: 280, height: 180 }, aspectRatio: 1.777, formatsToSupport: [
+      Html5QrcodeSupportedFormats.QR_CODE,
+      Html5QrcodeSupportedFormats.CODE_128,
+      Html5QrcodeSupportedFormats.CODE_39,
+      Html5QrcodeSupportedFormats.EAN_13,
+      Html5QrcodeSupportedFormats.UPC_A
+    ]};
+
+    try{
+      await html5Qr.start({ facingMode: { exact: "environment" } }, cfg, onScan);
+      isRunning = true;
+      els.start.disabled=true; els.stop.disabled=false;
+      setStatus('neutral', `Scanning for ${target==='A'?'A':'B'}…`);
+    }catch(e){
+      console.error(e);
+      setStatus('bad', 'Camera error.');
+    }
+  }
+
+  async function stop(){
+    if(!isRunning || !html5Qr) return;
+    await html5Qr.stop();
+    await html5Qr.clear();
+    isRunning=false;
+    els.start.disabled=false; els.stop.disabled=true;
+  }
+
+  function onScan(text){
+    if(target==='A'){ els.valA.value=text; target='B'; setStatus('neutral','Scanning for B…'); }
+    else { els.valB.value=text; updateMatch(); }
+  }
+
+  document.addEventListener('DOMContentLoaded', ()=>{
+    els.start.addEventListener('click', start);
+    els.stop.addEventListener('click', stop);
+  });
+</script>
 </body>
 </html>
