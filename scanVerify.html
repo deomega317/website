@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Camera Barcode/QR Matcher</title>
+  <link rel="preconnect" href="https://unpkg.com" crossorigin>
+  <script src="https://unpkg.com/html5-qrcode" defer></script>
+  <style>
+    :root{
+      --bg:#0b1020; --card:#111831; --muted:#98a2b3; --ok:#12b981; --bad:#ef4444; --warn:#f59e0b; --ink:#e5e7eb;
+      --accent:#6366f1; --accent2:#22d3ee;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;font:16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Ubuntu, Arial;
+         color:var(--ink); background: radial-gradient(1200px 800px at 10% 0%, #121a36 0%, #0b1020 60%);
+         display:flex; align-items:center; justify-content:center;}
+    .wrap{width:min(960px, 96vw); margin:20px;}
+    .card{background:linear-gradient(180deg, #141c3b, #0e142b); border:1px solid #1c254b; border-radius:20px; padding:18px; box-shadow:0 10px 30px rgba(0,0,0,.35)}
+    h1{margin:6px 0 14px; font-size:22px; letter-spacing:.2px}
+    .grid{display:grid; grid-template-columns: 1.1fr .9fr; gap:16px}
+    @media (max-width: 820px){ .grid{grid-template-columns: 1fr;}}
+    #reader{width:100%; min-height:320px; border-radius:16px; overflow:hidden; background:#0a0f22; border:1px solid #1f2a56}
+    .controls{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0}
+    button, select, input[type="checkbox"] + label{font:15px system-ui}
+    button{border:1px solid #273065; background:linear-gradient(180deg, #1c2450, #161d3f); color:#e8e9f0; padding:10px 14px; border-radius:12px; cursor:pointer}
+    button:hover{filter:brightness(1.06)}
+    button:disabled{opacity:.55; cursor:not-allowed}
+    .pill{display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:999px; border:1px solid #273065; background:#121940; color:#cbd5e1}
+    .row{display:flex; gap:10px; align-items:center;}
+    .field{display:grid; grid-template-columns: 110px 1fr 38px; gap:8px; align-items:center; margin:8px 0}
+    .field input{width:100%; padding:10px 12px; border-radius:12px; border:1px solid #273065; background:#0c1230; color:#e6e7ef}
+    .copy{border:1px dashed #334; border-radius:10px; height:40px; display:grid; place-items:center; cursor:pointer}
+    .copy:hover{background:#10173b}
+    .status{margin-top:10px; padding:12px; border-radius:14px; border:1px solid #263066; background:#0e1535}
+    .status.ok{border-color:#0e7a56; background:#0b2a20}
+    .status.bad{border-color:#7a0e1f; background:#2a0b11}
+    .status .dot{width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:8px}
+    .status.ok .dot{background:var(--ok)}
+    .status.bad .dot{background:var(--bad)}
+    .status.neutral .dot{background:var(--warn)}
+    small{color:var(--muted)}
+    .kbd{font:12px/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; background:#0c1230; border:1px solid #283269; padding:2px 6px; border-radius:6px}
+    .note{color:#aab1c6}
+    .hr{height:1px; background:linear-gradient(90deg, transparent, #253065, transparent); margin:12px 0}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>📷 Barcode & QR Matcher</h1>
+      <div class="note">Scan two codes with your phone camera—I'll fill A then B, and tell you if they match. Supports common 1D barcodes (Code128/39/EAN/UPC) and QR codes. <span class="kbd">HTTPS required</span>.</div>
+      <div class="hr"></div>
+
+      <div class="grid">
+        <section>
+          <div id="reader"></div>
+
+          <div class="controls">
+            <select id="cameraSelect" title="Camera"></select>
+            <button id="btnStart">Start Scan</button>
+            <button id="btnStop" disabled>Stop</button>
+            <label class="pill"><input type="checkbox" id="cbIgnore" checked> <span>Ignore case & spaces</span></label>
+            <label class="pill"><input type="checkbox" id="cbAutoNext" checked> <span>Auto A→B</span></label>
+          </div>
+
+          <div class="status neutral" id="status"><span class="dot"></span>
+            <strong>Status:</strong> Waiting to scan A…
+            <div><small>Tip: tap a field to rescan that value.</small></div>
+          </div>
+        </section>
+
+        <aside>
+          <div class="field">
+            <label for="valA">Scan A</label>
+            <input id="valA" placeholder="—" readonly>
+            <button class="copy" data-copy="valA" title="Copy">📋</button>
+          </div>
+          <div class="field">
+            <label for="valB">Scan B</label>
+            <input id="valB" placeholder="—" readonly>
+            <button class="copy" data-copy="valB" title="Copy">📋</button>
+          </div>
+          <div class="row">
+            <button id="btnClear">Clear</button>
+            <button id="btnSwap">Swap A↔B</button>
+            <button id="btnCompare">Compare</button>
+          </div>
+          <div style="margin-top:10px"><small>Exact match mode compares raw text. Toggle "Ignore case & spaces" for looser matching.</small></div>
+          <div class="hr"></div>
+          <details>
+            <summary>Troubleshooting</summary>
+            <ul>
+              <li>Serve this file over <strong>https://</strong> or open from a trusted origin. Mobile browsers block camera on plain HTTP.</li>
+              <li>Use good lighting and fill the frame. Try switching cameras if focus is soft.</li>
+              <li>If codes repeat too fast, scanning pauses after each capture—tap a field to resume.</li>
+            </ul>
+          </details>
+        </aside>
+      </div>
+    </div>
+  </div>
+
+  <audio id="beep" preload="auto">
+    <source src="data:audio/mp3;base64,//uQZAAAAAAAAAAAAAAAAAAAA..." type="audio/mpeg">
+  </audio>
+
+<script>
+  // Tiny sine beep fallback if <audio> fails
+  function buzz(){ if(navigator.vibrate) navigator.vibrate(150); }
+  function beep(){ const a=document.getElementById('beep'); if(a && a.play){ a.currentTime=0; a.play().catch(()=>tone()); } else tone(); }
+  function tone(){ try{ const ctx=new (window.AudioContext||window.webkitAudioContext)(); const o=ctx.createOscillator(); const g=ctx.createGain(); o.type='sine'; o.frequency.value=880; o.connect(g); g.connect(ctx.destination); g.gain.setValueAtTime(0.001, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime+0.01); o.start(); setTimeout(()=>{ g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+0.18); setTimeout(()=>{o.stop(); ctx.close();}, 220); }, 120);}catch(e){} }
+
+  let html5Qr=null, isRunning=false, target='A', pauseAfterCapture=true;
+  const els = {
+    reader: document.getElementById('reader'),
+    camSel: document.getElementById('cameraSelect'),
+    start: document.getElementById('btnStart'),
+    stop: document.getElementById('btnStop'),
+    clear: document.getElementById('btnClear'),
+    swap: document.getElementById('btnSwap'),
+    compare: document.getElementById('btnCompare'),
+    valA: document.getElementById('valA'),
+    valB: document.getElementById('valB'),
+    status: document.getElementById('status'),
+    cbIgnore: document.getElementById('cbIgnore'),
+    cbAutoNext: document.getElementById('cbAutoNext')
+  };
+
+  function setStatus(kind,msg){
+    els.status.className = 'status ' + (kind||'neutral');
+    els.status.querySelector('strong').nextSibling?.remove();
+    els.status.innerHTML = `<span class="dot"></span><strong>Status:</strong> ${msg}`;
+  }
+
+  function norm(s){
+    if(!s) return '';
+    const ignore = els.cbIgnore.checked;
+    return ignore ? s.replace(/\s+/g,'').toUpperCase() : s;
+  }
+
+  function updateMatch(){
+    const a = els.valA.value, b = els.valB.value;
+    if(!a && !b){ setStatus('neutral', 'Waiting to scan A…'); return; }
+    if(a && !b){ setStatus('neutral', 'A captured. Waiting to scan B…'); return; }
+    if(!a && b){ setStatus('neutral', 'B captured. Waiting to scan A…'); return; }
+    const match = norm(a) === norm(b);
+    if(match){ setStatus('ok', '✅ MATCH'); } else { setStatus('bad', '❌ NOT A MATCH'); }
+  }
+
+  async function listCameras(){
+    try{
+      const devices = await Html5Qrcode.getCameras();
+      els.camSel.innerHTML = '';
+      devices.forEach((d,i)=>{
+        const opt=document.createElement('option');
+        opt.value=d.id; opt.textContent=d.label||`Camera ${i+1}`; els.camSel.appendChild(opt);
+      });
+    }catch(e){ console.error(e); }
+  }
+
+  async function start(){
+    if(isRunning) return;
+    if(!html5Qr) html5Qr = new Html5Qrcode('reader', { verbose: false });
+
+    const cfg = { fps: 15, qrbox: { width: 280, height: 180 }, aspectRatio: 1.777, rememberLastUsedCamera: true, formatsToSupport: [
+      Html5QrcodeSupportedFormats.QR_CODE,
+      Html5QrcodeSupportedFormats.CODE_128,
+      Html5QrcodeSupportedFormats.CODE_39,
+      Html5QrcodeSupportedFormats.CODE_93,
+      Html5QrcodeSupportedFormats.EAN_13,
+      Html5QrcodeSupportedFormats.EAN_8,
+      Html5QrcodeSupportedFormats.UPC_A,
+      Html5QrcodeSupportedFormats.UPC_E
+    ]};
+
+    const camId = els.camSel.value || { facingMode: 'environment' };
+
+    try{
+      await html5Qr.start(camId, cfg, onScan, onScanError);
+      isRunning = true;
+      els.start.disabled=true; els.stop.disabled=false;
+      setStatus('neutral', `Scanning for ${target==='A'?'A':'B'}…`);
+    }catch(e){
+      console.error(e);
+      setStatus('bad', 'Camera error. Check permissions/HTTPS.');
+    }
+  }
+
+  async function stop(){
+    if(!isRunning || !html5Qr) return;
+    await html5Qr.stop();
+    await html5Qr.clear();
+    isRunning=false;
+    els.start.disabled=false; els.stop.disabled=true;
+  }
+
+  function onScan(text, result){
+    // Debounce repeated reads of same code
+    if(onScan.last === text && Date.now() - onScan.lastAt < 1000) return;
+    onScan.last = text; onScan.lastAt = Date.now();
+
+    beep(); buzz();
+    if(target==='A'){ els.valA.value = text; if(els.cbAutoNext.checked) target='B'; }
+    else { els.valB.value = text; if(els.cbAutoNext.checked) target='A'; }
+
+    updateMatch();
+    if(pauseAfterCapture){ stop(); setStatus('neutral', `Captured ${target==='B'?'A':'B'}. Tap a field or Start to scan ${target}.`); }
+  }
+
+  function onScanError(err){ /* ignore noisy errors */ }
+
+  // UI wiring
+  document.addEventListener('DOMContentLoaded', async()=>{
+    await listCameras();
+    updateMatch();
+    // Field taps decide target & resume scanning
+    els.valA.addEventListener('click', ()=>{ target='A'; start(); setStatus('neutral','Scanning for A…'); });
+    els.valB.addEventListener('click', ()=>{ target='B'; start(); setStatus('neutral','Scanning for B…'); });
+    els.start.addEventListener('click', start);
+    els.stop.addEventListener('click', stop);
+    els.clear.addEventListener('click', ()=>{ els.valA.value=''; els.valB.value=''; target='A'; updateMatch(); });
+    els.swap.addEventListener('click', ()=>{ const t=els.valA.value; els.valA.value=els.valB.value; els.valB.value=t; updateMatch(); });
+    els.compare.addEventListener('click', updateMatch);
+    els.cbIgnore.addEventListener('change', updateMatch);
+
+    document.querySelectorAll('.copy').forEach(btn=>{
+      btn.addEventListener('click', async()=>{
+        const id = btn.getAttribute('data-copy');
+        const val = (document.getElementById(id).value||'');
+        if(!val) return;
+        try{ await navigator.clipboard.writeText(val); btn.textContent='✅'; setTimeout(()=>btn.textContent='📋', 900);}catch(e){}
+      })
+    })
+  });
+</script>
+</body>
+</html>
